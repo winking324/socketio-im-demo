@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Socket.IO Debug - IM Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .debug-container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        .status.connecting { background-color: #fff3cd; color: #856404; }
+        .status.connected { background-color: #d4edda; color: #155724; }
+        .status.disconnected { background-color: #f8d7da; color: #721c24; }
+        .event-log {
+            height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            background-color: #f9f9f9;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .controls {
+            margin: 20px 0;
+        }
+        .controls input, .controls button {
+            margin: 5px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .controls button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        .controls button:hover {
+            background-color: #0056b3;
+        }
+        .controls button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .event-item {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 3px solid #007bff;
+            background-color: white;
+        }
+        .event-item.error {
+            border-left-color: #dc3545;
+        }
+        .event-item.success {
+            border-left-color: #28a745;
+        }
+        .timestamp {
+            color: #666;
+            font-size: 11px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Socket.IO Debug - IM Demo</h1>
+    
+    <div class="debug-container">
+        <h2>连接状态</h2>
+        <div id="connectionStatus" class="status connecting">连接中...</div>
+        <div id="connectionInfo"></div>
+    </div>
+
+    <div class="debug-container">
+        <h2>用户登录</h2>
+        <div class="controls">
+            <input type="text" id="usernameInput" placeholder="输入用户名" value="debug_user">
+            <button id="loginButton">登录</button>
+            <button id="logoutButton" disabled>退出</button>
+        </div>
+        <div id="userInfo"></div>
+    </div>
+
+    <div class="debug-container">
+        <h2>房间管理</h2>
+        <div class="controls">
+            <input type="text" id="roomInput" placeholder="房间ID" value="general">
+            <button id="joinRoomButton" disabled>加入房间</button>
+            <button id="leaveRoomButton" disabled>离开房间</button>
+        </div>
+        <div id="roomInfo"></div>
+    </div>
+
+    <div class="debug-container">
+        <h2>消息测试</h2>
+        <div class="controls">
+            <input type="text" id="messageInput" placeholder="输入消息" value="Hello World!">
+            <button id="sendMessageButton" disabled>发送消息</button>
+        </div>
+    </div>
+
+    <div class="debug-container">
+        <h2>事件日志</h2>
+        <div class="controls">
+            <button id="clearLogButton">清空日志</button>
+        </div>
+        <div id="eventLog" class="event-log"></div>
+    </div>
+
+    <script src="/web/socket.io.js"></script>
+    <script>
+        class SocketIODebug {
+            constructor() {
+                this.socket = null;
+                this.currentUser = null;
+                this.currentRoom = null;
+                
+                this.initializeElements();
+                this.setupEventListeners();
+                this.connectSocket();
+            }
+
+            initializeElements() {
+                this.connectionStatus = document.getElementById('connectionStatus');
+                this.connectionInfo = document.getElementById('connectionInfo');
+                this.usernameInput = document.getElementById('usernameInput');
+                this.loginButton = document.getElementById('loginButton');
+                this.logoutButton = document.getElementById('logoutButton');
+                this.userInfo = document.getElementById('userInfo');
+                this.roomInput = document.getElementById('roomInput');
+                this.joinRoomButton = document.getElementById('joinRoomButton');
+                this.leaveRoomButton = document.getElementById('leaveRoomButton');
+                this.roomInfo = document.getElementById('roomInfo');
+                this.messageInput = document.getElementById('messageInput');
+                this.sendMessageButton = document.getElementById('sendMessageButton');
+                this.clearLogButton = document.getElementById('clearLogButton');
+                this.eventLog = document.getElementById('eventLog');
+            }
+
+            setupEventListeners() {
+                this.loginButton.addEventListener('click', () => this.login());
+                this.logoutButton.addEventListener('click', () => this.logout());
+                this.joinRoomButton.addEventListener('click', () => this.joinRoom());
+                this.leaveRoomButton.addEventListener('click', () => this.leaveRoom());
+                this.sendMessageButton.addEventListener('click', () => this.sendMessage());
+                this.clearLogButton.addEventListener('click', () => this.clearLog());
+                
+                // Enter key handlers
+                this.usernameInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') this.login();
+                });
+                this.roomInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') this.joinRoom();
+                });
+                this.messageInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') this.sendMessage();
+                });
+            }
+
+            connectSocket() {
+                this.log('正在连接Socket.IO服务器...', 'info');
+                this.updateConnectionStatus('connecting');
+                
+                this.socket = io('/', {
+                    transports: ['websocket', 'polling'],
+                    timeout: 20000,
+                    forceNew: true
+                });
+
+                this.setupSocketListeners();
+            }
+
+            setupSocketListeners() {
+                this.socket.on('connect', () => {
+                    this.log(`Socket.IO连接成功 (ID: ${this.socket.id})`, 'success');
+                    this.updateConnectionStatus('connected');
+                    this.updateConnectionInfo();
+                });
+
+                this.socket.on('disconnect', () => {
+                    this.log('Socket.IO连接断开', 'error');
+                    this.updateConnectionStatus('disconnected');
+                    this.updateConnectionInfo();
+                });
+
+                this.socket.on('connect_error', (error) => {
+                    this.log(`连接错误: ${error.message}`, 'error');
+                    this.updateConnectionStatus('disconnected');
+                });
+
+                this.socket.on('joined', (data) => {
+                    this.log(`用户加入成功: ${JSON.stringify(data)}`, 'success');
+                    this.currentUser = data;
+                    this.updateUserInfo();
+                    this.updateButtons();
+                });
+
+                this.socket.on('room_joined', (data) => {
+                    this.log(`房间加入成功: ${JSON.stringify(data)}`, 'success');
+                    this.currentRoom = data.roomId;
+                    this.updateRoomInfo();
+                });
+
+                this.socket.on('user_joined_room', (data) => {
+                    this.log(`用户加入房间: ${JSON.stringify(data)}`, 'info');
+                });
+
+                this.socket.on('user_left_room', (data) => {
+                    this.log(`用户离开房间: ${JSON.stringify(data)}`, 'info');
+                });
+
+                this.socket.on('message', (message) => {
+                    this.log(`收到消息: ${JSON.stringify(message)}`, 'success');
+                });
+
+                this.socket.on('user_status', (data) => {
+                    this.log(`用户状态更新: ${JSON.stringify(data)}`, 'info');
+                });
+
+                this.socket.on('error', (data) => {
+                    this.log(`服务器错误: ${JSON.stringify(data)}`, 'error');
+                });
+
+                this.socket.on('typing', (data) => {
+                    this.log(`用户正在输入: ${JSON.stringify(data)}`, 'info');
+                });
+
+                this.socket.on('stop_typing', (data) => {
+                    this.log(`用户停止输入: ${JSON.stringify(data)}`, 'info');
+                });
+            }
+
+            login() {
+                const username = this.usernameInput.value.trim();
+                if (!username) {
+                    this.log('请输入用户名', 'error');
+                    return;
+                }
+
+                const userData = {
+                    userId: username + '_' + Date.now(),
+                    userName: username,
+                    avatar: ''
+                };
+
+                this.log(`发送登录请求: ${JSON.stringify(userData)}`, 'info');
+                this.socket.emit('join', userData);
+            }
+
+            logout() {
+                this.log('用户退出', 'info');
+                this.currentUser = null;
+                this.currentRoom = null;
+                this.updateUserInfo();
+                this.updateRoomInfo();
+                this.updateButtons();
+            }
+
+            joinRoom() {
+                const roomId = this.roomInput.value.trim();
+                if (!roomId || !this.currentUser) {
+                    this.log('请先登录并输入房间ID', 'error');
+                    return;
+                }
+
+                const roomData = {
+                    roomId: roomId,
+                    userName: this.currentUser.userName
+                };
+
+                this.log(`发送加入房间请求: ${JSON.stringify(roomData)}`, 'info');
+                this.socket.emit('join_room', roomData);
+            }
+
+            leaveRoom() {
+                if (!this.currentRoom || !this.currentUser) {
+                    this.log('没有当前房间或未登录', 'error');
+                    return;
+                }
+
+                const roomData = {
+                    roomId: this.currentRoom,
+                    userName: this.currentUser.userName
+                };
+
+                this.log(`发送离开房间请求: ${JSON.stringify(roomData)}`, 'info');
+                this.socket.emit('leave_room', roomData);
+                this.currentRoom = null;
+                this.updateRoomInfo();
+            }
+
+            sendMessage() {
+                const content = this.messageInput.value.trim();
+                if (!content || !this.currentUser) {
+                    this.log('请输入消息内容并确保已登录', 'error');
+                    return;
+                }
+
+                const messageData = {
+                    type: 'text',
+                    content: content,
+                    sender: this.currentUser.userName,
+                    roomId: this.currentRoom,
+                    receiver: ''
+                };
+
+                this.log(`发送消息: ${JSON.stringify(messageData)}`, 'info');
+                this.socket.emit('message', messageData);
+                this.messageInput.value = '';
+            }
+
+            updateConnectionStatus(status) {
+                this.connectionStatus.className = `status ${status}`;
+                const statusText = {
+                    'connecting': '连接中...',
+                    'connected': '已连接',
+                    'disconnected': '已断开'
+                };
+                this.connectionStatus.textContent = statusText[status] || status;
+            }
+
+            updateConnectionInfo() {
+                if (this.socket && this.socket.connected) {
+                    this.connectionInfo.innerHTML = `
+                        <strong>Socket ID:</strong> ${this.socket.id}<br>
+                        <strong>Transport:</strong> ${this.socket.io.engine.transport.name}<br>
+                        <strong>连接时间:</strong> ${new Date().toLocaleString()}
+                    `;
+                } else {
+                    this.connectionInfo.innerHTML = '';
+                }
+            }
+
+            updateUserInfo() {
+                if (this.currentUser) {
+                    this.userInfo.innerHTML = `
+                        <strong>用户ID:</strong> ${this.currentUser.userId}<br>
+                        <strong>用户名:</strong> ${this.currentUser.userName}<br>
+                        <strong>状态:</strong> ${this.currentUser.status}
+                    `;
+                } else {
+                    this.userInfo.innerHTML = '<em>未登录</em>';
+                }
+            }
+
+            updateRoomInfo() {
+                if (this.currentRoom) {
+                    this.roomInfo.innerHTML = `
+                        <strong>当前房间:</strong> ${this.currentRoom}
+                    `;
+                } else {
+                    this.roomInfo.innerHTML = '<em>未加入房间</em>';
+                }
+            }
+
+            updateButtons() {
+                const isLoggedIn = this.currentUser !== null;
+                const isConnected = this.socket && this.socket.connected;
+                
+                this.loginButton.disabled = !isConnected || isLoggedIn;
+                this.logoutButton.disabled = !isLoggedIn;
+                this.joinRoomButton.disabled = !isLoggedIn;
+                this.leaveRoomButton.disabled = !this.currentRoom;
+                this.sendMessageButton.disabled = !isLoggedIn;
+            }
+
+            log(message, type = 'info') {
+                const timestamp = new Date().toLocaleTimeString();
+                const logEntry = document.createElement('div');
+                logEntry.className = `event-item ${type}`;
+                logEntry.innerHTML = `
+                    <span class="timestamp">[${timestamp}]</span>
+                    <span class="message">${message}</span>
+                `;
+                
+                this.eventLog.appendChild(logEntry);
+                this.eventLog.scrollTop = this.eventLog.scrollHeight;
+            }
+
+            clearLog() {
+                this.eventLog.innerHTML = '';
+            }
+        }
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            new SocketIODebug();
+        });
+    </script>
+</body>
+</html> 

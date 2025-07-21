@@ -1,0 +1,27 @@
+# Server Configuration
+server:
+  port: 8080
+  host: localhost
+  env: development
+
+# Redis Configuration
+redis:
+  addr: localhost:6379
+  password: ""
+  db: 0
+
+# Socket.IO Configuration
+socketio:
+  cors_origins: "*"
+  ping_timeout: 60s
+  ping_interval: 25s
+
+# File Upload Configuration
+upload:
+  max_file_size: 10485760  # 10MB
+  upload_dir: uploads/
+
+# Logging
+logging:
+  level: info
+  format: json 

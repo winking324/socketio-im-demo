@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IM聊天室 - 多设备支持</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .login-container {
+            background: white;
+            border-radius: 15px;
+            padding: 40px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        .chat-container {
+            display: none;
+            background: white;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            height: 600px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .user-info {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .device-info {
+            font-size: 0.8em;
+            opacity: 0.9;
+            margin-top: 2px;
+        }
+
+        .status-info {
+            text-align: right;
+            font-size: 0.9em;
+        }
+
+        .device-count {
+            background: rgba(255,255,255,0.2);
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.8em;
+            margin-top: 2px;
+        }
+
+        .chat-body {
+            flex: 1;
+            display: flex;
+        }
+
+        .sidebar {
+            width: 250px;
+            background: #f8f9fa;
+            border-right: 1px solid #e9ecef;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .room-list {
+            flex: 1;
+            padding: 20px;
+        }
+
+        .room-list h3 {
+            margin-bottom: 15px;
+            color: #495057;
+            font-size: 1.1em;
+        }
+
+        .room-item {
+            padding: 12px 15px;
+            margin-bottom: 8px;
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .room-item:hover {
+            background: #e3f2fd;
+            border-color: #2196f3;
+        }
+
+        .room-item.active {
+            background: #2196f3;
+            color: white;
+            border-color: #2196f3;
+        }
+
+        .device-status-panel {
+            padding: 15px;
+            border-top: 1px solid #e9ecef;
+            background: #f1f3f4;
+            font-size: 0.85em;
+        }
+
+        .device-status h4 {
+            margin-bottom: 8px;
+            color: #495057;
+        }
+
+        .current-device {
+            margin-top: 8px;
+            color: #666;
+        }
+
+        .main-chat {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .messages-container {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #fafafa;
+            position: relative;
+            scroll-behavior: smooth;
+        }
+
+        /* 美化滚动条 */
+        .messages-container::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .messages-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+
+        .messages-container::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 3px;
+        }
+
+        .messages-container::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+
+        /* 滚动到底部按钮 */
+        .scroll-to-bottom {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 40px;
+            height: 40px;
+            background: #2196f3;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            transition: all 0.3s ease;
+            z-index: 10;
+        }
+
+        .scroll-to-bottom:hover {
+            background: #1976d2;
+            transform: scale(1.1);
+        }
+
+        .scroll-to-bottom.show {
+            display: flex;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            padding: 12px 15px;
+            border-radius: 12px;
+            max-width: 70%;
+            word-wrap: break-word;
+        }
+
+        .message.own {
+            background: #2196f3;
+            color: white;
+            margin-left: auto;
+            text-align: right;
+        }
+
+        .message.other {
+            background: white;
+            border: 1px solid #e9ecef;
+        }
+
+        .message.system {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            margin: 10px auto;
+            text-align: center;
+            max-width: 80%;
+        }
+
+        .message-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+            font-size: 0.85em;
+        }
+
+        .message.own .message-header {
+            flex-direction: row-reverse;
+        }
+
+        .sender {
+            font-weight: bold;
+        }
+
+        .time {
+            opacity: 0.7;
+            font-size: 0.9em;
+        }
+
+        .message-content {
+            line-height: 1.4;
+        }
+
+        .file-message {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .file-message img {
+            border-radius: 8px;
+        }
+
+        .typing-indicator {
+            padding: 10px 20px;
+            font-style: italic;
+            color: #666;
+            background: #f8f9fa;
+            border-top: 1px solid #e9ecef;
+            display: none;
+        }
+
+        .input-area {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #e9ecef;
+        }
+
+        .input-form {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .message-input {
+            flex: 1;
+            padding: 12px 15px;
+            border: 1px solid #e9ecef;
+            border-radius: 25px;
+            outline: none;
+            font-size: 1em;
+            resize: none;
+            max-height: 100px;
+        }
+
+        .message-input:focus {
+            border-color: #2196f3;
+            box-shadow: 0 0 0 2px rgba(33,150,243,0.1);
+        }
+
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 500;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .btn-primary {
+            background: #2196f3;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #1976d2;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: #f8f9fa;
+            color: #495057;
+            border: 1px solid #e9ecef;
+        }
+
+        .btn-secondary:hover {
+            background: #e9ecef;
+        }
+
+        .login-form {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .form-group {
+            text-align: left;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #495057;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 12px 15px;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.2s;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: #2196f3;
+            box-shadow: 0 0 0 2px rgba(33,150,243,0.1);
+        }
+
+        .status-indicator {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: 500;
+            margin-top: 15px;
+        }
+
+        .status-indicator.connecting {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-indicator.connected {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-indicator.joined {
+            background: #cce5ff;
+            color: #0066cc;
+        }
+
+        .status-indicator.disconnected {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .status-indicator.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            z-index: 1000;
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+        }
+
+        .notification.show {
+            transform: translateX(0);
+        }
+
+        .notification.info {
+            background: #2196f3;
+        }
+
+        .notification.warning {
+            background: #ff9800;
+        }
+
+        .notification.error {
+            background: #f44336;
+        }
+
+        .notification.success {
+            background: #4caf50;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+
+            .chat-container {
+                height: 90vh;
+            }
+
+            .sidebar {
+                width: 200px;
+            }
+
+            .message {
+                max-width: 85%;
+            }
+
+            .login-container {
+                padding: 30px 20px;
+            }
+        }
+
+        /* 文件上传按钮样式 */
+        .upload-btn {
+            background: #ff9800;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 44px;
+            height: 44px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .upload-btn:hover {
+            background: #f57c00;
+            transform: scale(1.05);
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .logo {
+            margin-bottom: 30px;
+        }
+
+        .logo h1 {
+            color: #495057;
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .logo p {
+            color: #6c757d;
+            font-size: 1.1em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 登录表单 -->
+        <div id="loginForm" class="login-container">
+            <div class="logo">
+                <h1>💬 IM聊天室</h1>
+                <p>支持多设备同时在线</p>
+            </div>
+            
+            <form class="login-form">
+                <div class="form-group">
+                    <label for="username">用户名</label>
+                    <input type="text" id="username" class="form-control" placeholder="请输入您的用户名" required>
+                </div>
+                
+                <button type="button" id="loginBtn" class="btn btn-primary">
+                    🚀 加入聊天
+                </button>
+            </form>
+            
+            <div id="statusIndicator" class="status-indicator connecting">连接中...</div>
+        </div>
+
+        <!-- 聊天界面 -->
+        <div id="chatContainer" class="chat-container">
+            <!-- 聊天头部 -->
+            <div class="chat-header">
+                <div class="user-info">
+                    <span id="userDisplay">👤 未登录</span>
+                    <span class="device-info" id="deviceDisplay">设备信息</span>
+                </div>
+                <div class="status-info">
+                    <div id="roomDisplay">💬 选择房间</div>
+                    <div class="device-count" id="deviceCount">1 设备在线</div>
+                </div>
+            </div>
+
+            <!-- 聊天主体 -->
+            <div class="chat-body">
+                <!-- 侧边栏 -->
+                <div class="sidebar">
+                    <div class="room-list">
+                        <h3>📋 房间列表</h3>
+                        <div class="room-item active" data-room="general">
+                            🏠 大厅
+                        </div>
+                        <div class="room-item" data-room="tech">
+                            💻 技术讨论
+                        </div>
+                        <div class="room-item" data-room="random">
+                            🎲 随机聊天
+                        </div>
+                        <div class="room-item" data-room="support">
+                            🆘 技术支持
+                        </div>
+                    </div>
+
+                    <!-- 设备状态面板 -->
+                    <div class="device-status-panel" id="deviceInfo">
+                        <div class="device-status">
+                            <h4>📱 设备状态</h4>
+                            <span class="device-count">1 设备在线</span>
+                        </div>
+                        <div class="current-device">
+                            <strong>当前设备:</strong> 检测中...
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 主聊天区域 -->
+                <div class="main-chat">
+                    <!-- 消息容器 -->
+                    <div class="messages-container" id="messages">
+                        <div class="message system">
+                            <div class="message-content">
+                                <p><em>欢迎来到IM聊天室！现在支持多设备同时在线。</em></p>
+                            </div>
+                        </div>
+                        <!-- 滚动到底部按钮 -->
+                        <button id="scrollToBottomBtn" class="scroll-to-bottom" title="滚动到底部">
+                            ⬇️
+                        </button>
+                    </div>
+
+                    <!-- 输入指示器 -->
+                    <div id="typingIndicator" class="typing-indicator">
+                        有人正在输入...
+                    </div>
+
+                    <!-- 输入区域 -->
+                    <div class="input-area">
+                        <form id="messageForm" class="input-form">
+                            <input type="file" id="fileInput" accept="*/*">
+                            <button type="button" id="uploadBtn" class="upload-btn" title="上传文件">
+                                📎
+                            </button>
+                            <textarea id="messageInput" class="message-input" placeholder="输入消息..." rows="1"></textarea>
+                            <button type="submit" id="sendBtn" class="btn btn-primary">
+                                ✉️ 发送
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/web/socket.io.js"></script>
+    <script src="/web/client.js"></script>
+</body>
+</html> 
