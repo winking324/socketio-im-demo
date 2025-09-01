@@ -211,6 +211,10 @@ class IMClient {
         this.updateConnectionStatus('disconnected');
         this.clearMessages();
         this.clearUserList();
+        
+        // Switch back to login form
+        document.getElementById('chatContainer').classList.remove('active');
+        document.getElementById('loginForm').style.display = 'block';
     }
 
     connectSocket() {
@@ -274,7 +278,7 @@ class IMClient {
             this.updateStatus(`已加入 (${this.deviceCount} 设备在线)`, 'joined');
             this.updateDeviceInfo();
             document.getElementById('loginForm').style.display = 'none';
-            document.getElementById('chatContainer').style.display = 'block';
+            document.getElementById('chatContainer').classList.add('active');
             this.setupChatEventListeners(); // 在显示聊天界面后绑定事件
             this.updateUserInfo(data);
         });
