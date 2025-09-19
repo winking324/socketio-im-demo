@@ -16,7 +16,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
-	"github.com/zishang520/socket.io/v2/socket"
+	"github.com/zishang520/socket.io/servers/socket/v3"
 )
 
 // SocketIOHandler handles Socket.IO connections and events using v4+ protocol
